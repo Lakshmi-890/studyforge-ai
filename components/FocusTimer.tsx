@@ -20,6 +20,7 @@ import confetti from "canvas-confetti";
 interface FocusTimerProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTaskName?: string;
 }
 
 const soundMap: Record<string, string> = {
@@ -29,7 +30,7 @@ const soundMap: Record<string, string> = {
   synth: "/sounds/deepspace.mp3"
 };
 
-export default function FocusTimer({ isOpen, onClose }: FocusTimerProps) {
+export default function FocusTimer({ isOpen, onClose, initialTaskName }: FocusTimerProps) {
   // Timer States
   const [sessionMinutes, setSessionMinutes] = useState(25);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
@@ -38,7 +39,7 @@ export default function FocusTimer({ isOpen, onClose }: FocusTimerProps) {
   const [isBreak, setIsBreak] = useState(false);
   
   // Custom Settings
-  const [subject, setSubject] = useState("Calculus");
+  const [subject, setSubject] = useState(initialTaskName || "Calculus");
   const [aiMode, setAiMode] = useState(false);
   const [ambientSound, setAmbientSound] = useState("none");
   const [soundPlaying, setSoundPlaying] = useState(false);
@@ -61,6 +62,16 @@ export default function FocusTimer({ isOpen, onClose }: FocusTimerProps) {
       }
     };
   }, []);
+
+  // Autoplay timer when opened with a custom task name
+  useEffect(() => {
+    if (isOpen && initialTaskName) {
+      setSubject(initialTaskName);
+      setIsActive(true);
+      setIsPaused(false);
+      setTimeLeft(sessionMinutes * 60);
+    }
+  }, [isOpen, initialTaskName]);
 
   useEffect(() => {
     if (!audioRef.current) return;
@@ -257,6 +268,9 @@ export default function FocusTimer({ isOpen, onClose }: FocusTimerProps) {
             disabled={isActive}
             className="bg-slate-900/40 border border-slate-800 rounded-full px-3 py-1 text-xs font-semibold text-slate-300 outline-none hover:border-slate-700 cursor-pointer disabled:opacity-50"
           >
+            {!["Calculus", "Chemistry", "Physics", "Programming", "Writing"].includes(subject) && (
+              <option value={subject}>{subject}</option>
+            )}
             <option value="Calculus">Calculus II</option>
             <option value="Chemistry">Organic Chemistry</option>
             <option value="Physics">Physics Mechanics</option>
@@ -301,7 +315,7 @@ export default function FocusTimer({ isOpen, onClose }: FocusTimerProps) {
               cy="110"
               r={radius}
               className={`fill-none transition-all duration-1000 ${
-                isBreak ? "stroke-teal-500" : "stroke-indigo-500"
+                isBreak ? "stroke-teal-500" : "stroke-purple-500"
               }`}
               strokeWidth="10"
               strokeDasharray={circumference}
@@ -337,7 +351,7 @@ export default function FocusTimer({ isOpen, onClose }: FocusTimerProps) {
           {!isActive ? (
             <button
               onClick={startTimer}
-              className="w-16 h-16 rounded-full bg-indigo-500 hover:bg-indigo-600 border-2 border-indigo-400/50 hover:border-indigo-400 flex items-center justify-center text-white glow-btn shadow-lg cursor-pointer"
+              className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 border-2 border-purple-400/40 hover:border-pink-400 flex items-center justify-center text-white glow-btn shadow-lg cursor-pointer"
               title="Start Timer"
             >
               <Play size={24} className="ml-1 fill-white" />
@@ -379,7 +393,7 @@ export default function FocusTimer({ isOpen, onClose }: FocusTimerProps) {
                   onClick={() => handlePreset(mins)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
                     sessionMinutes === mins
-                      ? "bg-indigo-600/20 border-indigo-500/50 text-indigo-300"
+                      ? "bg-purple-650/20 border-purple-500/50 text-purple-300"
                       : "bg-slate-900/40 border-slate-850 hover:border-slate-800 text-slate-400"
                   }`}
                 >

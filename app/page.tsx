@@ -62,7 +62,7 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-[#090a12] text-slate-100 flex flex-col font-sans select-none">
+    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0F172A] text-slate-100 flex flex-col font-sans select-none">
       {/* Floating Header */}
       <header className="fixed top-4 inset-x-4 max-w-6xl mx-auto h-16 glass-panel rounded-2xl z-50 px-6 flex items-center justify-between border border-slate-800/60 shadow-lg">
         <div className="flex items-center gap-3">
@@ -89,7 +89,7 @@ export default function LandingPage() {
           </Link>
           <Link
             href="/register"
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-xs font-bold text-white border border-indigo-400/35 hover:border-indigo-400 glow-btn transition-all cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-xs font-bold text-white border border-purple-500/25 hover:border-pink-405 glow-btn transition-all cursor-pointer"
           >
             Get Started
           </Link>
@@ -128,7 +128,7 @@ export default function LandingPage() {
             <Link
               href="/register"
               onClick={() => setMobileMenuOpen(false)}
-              className="py-3 rounded-xl bg-indigo-600 text-center font-bold text-sm text-white"
+              className="py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-center font-bold text-sm text-white"
             >
               Get Started Free
             </Link>
@@ -157,7 +157,7 @@ export default function LandingPage() {
         <div className="flex flex-col sm:flex-row items-center gap-4 mt-10">
           <Link
             href="/register"
-            className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-sm font-bold text-white border border-indigo-400/30 hover:border-indigo-400 flex items-center justify-center gap-2 shadow-lg hover:shadow-indigo-500/20 glow-btn transition-all cursor-pointer"
+            className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-sm font-bold text-white border border-purple-500/25 hover:border-pink-400 flex items-center justify-center gap-2 shadow-lg hover:shadow-purple-500/20 glow-btn transition-all cursor-pointer"
           >
             <span>Get Started Free</span>
             <ArrowRight size={16} />

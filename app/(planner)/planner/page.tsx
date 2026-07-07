@@ -29,7 +29,8 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Plus
+  Plus,
+  Play
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import toast from "react-hot-toast";
@@ -785,7 +786,7 @@ export default function PlannerPage() {
                                 onKeyDown={(e) => e.key === "Enter" && handleSaveRename(plan.id, e)}
                                 autoFocus
                               />
-                              <button onClick={(e) => handleSaveRename(plan.id, e)} className="p-1 bg-indigo-600 rounded text-white hover:bg-indigo-700">
+                              <button onClick={(e) => handleSaveRename(plan.id, e)} className="p-1 bg-gradient-to-r from-purple-600 to-pink-600 rounded text-white hover:from-purple-500 hover:to-pink-500">
                                 <Check size={10} />
                               </button>
                             </div>
@@ -970,7 +971,7 @@ export default function PlannerPage() {
                 <button
                   onClick={handleGenerate}
                   disabled={isGenerating}
-                  className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-xs font-bold text-white border border-indigo-400/35 hover:border-indigo-400 glow-btn flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 mt-6"
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-xs font-bold text-white border border-purple-500/25 hover:border-pink-400/50 glow-btn flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 mt-6 shadow-md"
                 >
                   <Sparkles size={14} />
                   <span>{isGenerating ? "AI is generating plan..." : "Generate AI Study Plan"}</span>
@@ -1070,7 +1071,7 @@ export default function PlannerPage() {
                     </button>
                     <button
                       onClick={downloadPlanAsPDF}
-                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-xs font-bold text-white border border-indigo-500/40 hover:border-indigo-400 transition-all cursor-pointer shadow-lg hover:shadow-indigo-600/20"
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-xs font-bold text-white border border-purple-500/35 hover:border-pink-400 transition-all cursor-pointer shadow-lg hover:shadow-purple-500/20"
                     >
                       <Download size={13} />
                       <span>Download PDF</span>
@@ -1144,9 +1145,19 @@ export default function PlannerPage() {
                                 {session.type}
                               </span>
                             </div>
-                            <p className={`text-xs mt-1 leading-snug ${isCompleted ? "text-slate-550 line-through" : "text-slate-400"}`}>
+                            <p className={`text-xs mt-1 leading-snug ${isCompleted ? "text-slate-555 line-through" : "text-slate-400"}`}>
                               {session.desc}
                             </p>
+                            {!isCompleted && session.status !== "Rest" && (
+                              <button
+                                onClick={() => {
+                                  window.dispatchEvent(new CustomEvent("start-focus-session", { detail: { taskName: session.title } }));
+                                }}
+                                className="mt-2 flex items-center gap-1 text-[10px] font-bold text-purple-400 hover:text-pink-400 transition-all cursor-pointer"
+                              >
+                                <Play size={10} /> Start Focus Session
+                              </button>
+                            )}
                           </div>
                         </div>
                       );
@@ -1299,7 +1310,7 @@ export default function PlannerPage() {
                 </button>
                 <button
                   onClick={handleSetReminder}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer transition-all border border-indigo-500/30"
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold cursor-pointer transition-all border border-purple-500/30"
                 >
                   Save Reminder
                 </button>

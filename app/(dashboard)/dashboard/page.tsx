@@ -37,6 +37,12 @@ export default function Dashboard() {
   const [newSubject, setNewSubject] = useState("Calculus");
   const [savingTask, setSavingTask] = useState(false);
   const [fullName, setFullName] = useState("");
+  const [activeTask, setActiveTask] = useState<string | null>(null);
+
+  const handleStartSession = (title: string) => {
+    setActiveTask(title);
+    window.dispatchEvent(new CustomEvent("start-focus-session", { detail: { taskName: title } }));
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -189,7 +195,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-left">
         {/* Analytics Chart */}
-        <div className="lg:col-span-2 glass-panel rounded-3xl p-6 border border-slate-800/80">
+        <div className="lg:col-span-2 glass-panel rounded-3xl p-6">
           <div className="flex items-center justify-between mb-5">
             <div>
               <h2 className="text-sm font-bold text-white">Weekly Study Activity</h2>
@@ -223,7 +229,7 @@ export default function Dashboard() {
         </div>
 
         {/* Today's Schedule */}
-        <div className="glass-panel rounded-3xl p-6 border border-slate-800/80">
+        <div className="glass-panel rounded-3xl p-6">
           <div className="flex items-center gap-2 mb-5">
             <Calendar className="w-4 h-4 text-teal-400" />
             <h2 className="text-sm font-bold text-white">Today's Plan</h2>
@@ -240,7 +246,10 @@ export default function Dashboard() {
                     {s.done && <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />}
                   </div>
                   {!s.done && (
-                    <button className="mt-2 flex items-center gap-1 text-[10px] font-bold text-indigo-400 hover:text-indigo-300">
+                    <button 
+                      onClick={() => handleStartSession(s.title)}
+                      className="mt-2 flex items-center gap-1 text-[10px] font-bold text-purple-400 hover:text-pink-400 transition-all cursor-pointer"
+                    >
                       <Play size={10} /> Start Session
                     </button>
                   )}
@@ -257,14 +266,14 @@ export default function Dashboard() {
         </div>
 
         {/* Focus Tasks */}
-        <div className="lg:col-span-2 glass-panel rounded-3xl p-6 border border-slate-800/80">
+        <div className="lg:col-span-2 glass-panel rounded-3xl p-6">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-400" />
+              <Sparkles className="w-4 h-4 text-purple-400" />
               <h2 className="text-sm font-bold text-white">Focus Tasks</h2>
             </div>
             <button onClick={() => setShowAddTask(!showAddTask)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/15 border border-indigo-500/30 text-indigo-400 text-xs font-bold hover:bg-indigo-600/25 transition-all cursor-pointer">
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600/15 border border-purple-500/30 text-purple-300 text-xs font-bold hover:bg-purple-650/25 transition-all cursor-pointer">
               <Plus size={12} /> Add Task
             </button>
           </div>
@@ -281,7 +290,7 @@ export default function Dashboard() {
                   ))}
                 </select>
                 <button type="submit" disabled={savingTask}
-                  className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-xs font-bold text-white transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1">
+                  className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-xs font-bold text-white transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1">
                   {savingTask ? <Loader2 size={12} className="animate-spin" /> : null}
                   {savingTask ? "Saving..." : "Add"}
                 </button>
@@ -317,12 +326,12 @@ export default function Dashboard() {
         </div>
 
         {/* Quick Actions */}
-        <div className="glass-panel rounded-3xl p-6 border border-slate-800/80">
+        <div className="glass-panel rounded-3xl p-6">
           <h2 className="text-sm font-bold text-white mb-5">Quick Actions</h2>
           <div className="space-y-3">
             {[
-              { label: "Open AI Planner", desc: "Generate study schedule", href: "/planner", color: "text-indigo-400 border-indigo-500/30 bg-indigo-500/5 hover:bg-indigo-500/10" },
-              { label: "Ask AI Tutor", desc: "Socratic study session", href: "/tutor", color: "text-purple-400 border-purple-500/30 bg-purple-500/5 hover:bg-purple-500/10" },
+              { label: "Open AI Planner", desc: "Generate study schedule", href: "/planner", color: "text-purple-400 border-purple-500/30 bg-purple-500/5 hover:bg-purple-500/10" },
+              { label: "Ask AI Tutor", desc: "Socratic study session", href: "/tutor", color: "text-pink-400 border-pink-500/30 bg-pink-500/5 hover:bg-pink-500/10" },
               { label: "Upload Material", desc: "PDF to flashcards & quiz", href: "/materials", color: "text-teal-400 border-teal-500/30 bg-teal-500/5 hover:bg-teal-500/10" },
             ].map((action) => (
               <a key={action.label} href={action.href}

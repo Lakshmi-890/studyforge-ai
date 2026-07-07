@@ -16,10 +16,25 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const supabase = createClient();
   const [collapsed, setCollapsed] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
+  const [focusTaskName, setFocusTaskName] = useState("");
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
   const [membershipTier, setMembershipTier] = useState<string>("free");
   const [loadingNotifs, setLoadingNotifs] = useState(false);
+
+  useEffect(() => {
+    const handleStartFocus = (e: Event) => {
+      const customEvent = e as CustomEvent<{ taskName: string }>;
+      if (customEvent.detail?.taskName) {
+        setFocusTaskName(customEvent.detail.taskName);
+        setShowTimer(true);
+      }
+    };
+    window.addEventListener("start-focus-session", handleStartFocus);
+    return () => {
+      window.removeEventListener("start-focus-session", handleStartFocus);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -101,7 +116,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#090a12] text-slate-100 flex font-sans">
+    <div className="min-h-screen bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0F172A] text-slate-100 flex font-sans">
       <Toaster position="top-right" toastOptions={{ style: { background: '#1e1b4b', color: '#fff', border: '1px solid #312e81' } }} />
       <Sidebar onToggle={(state) => setCollapsed(state)} />
 
@@ -116,8 +131,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
           <div className="flex items-center gap-4">
             {/* Pomodoro */}
-            <button onClick={() => setShowTimer(true)}
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-indigo-600/10 hover:bg-indigo-600/20 border border-indigo-500/25 hover:border-indigo-500/40 text-indigo-400 text-xs font-semibold glow-btn cursor-pointer transition-all">
+            <button onClick={() => {
+              setFocusTaskName("");
+              setShowTimer(true);
+            }}
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-semibold glow-btn cursor-pointer transition-all border border-purple-500/35 hover:border-pink-400 shadow-md shadow-purple-500/10">
               <Timer className="w-4 h-4" />
               <span>Pomodoro</span>
             </button>
@@ -163,7 +181,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </main>
       </div>
 
-      {showTimer && <FocusTimer isOpen={showTimer} onClose={() => setShowTimer(false)} />}
+      {showTimer && <FocusTimer isOpen={showTimer} onClose={() => setShowTimer(false)} initialTaskName={focusTaskName} />}
     </div>
   );
 }
