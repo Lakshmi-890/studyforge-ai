@@ -25,11 +25,13 @@ export default function LoginPage() {
       password,
     });
 
-    setLoading(false);
-
     if (error) {
       setErrorMsg(error.message);
+      setLoading(false);
     } else {
+      // router.refresh() Next.js client-side route cache ni clear chestundi mariyu cookies ni server side lo update chestundi.
+      router.refresh();
+      // User ni dashboard page ki redirect chestundi.
       router.push("/dashboard");
     }
   };
