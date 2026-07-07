@@ -6,7 +6,7 @@ const PROTECTED_ROUTES = ["/dashboard", "/planner", "/tutor", "/tasks", "/materi
 // Routes only for unauthenticated users
 const AUTH_ROUTES = ["/login", "/register", "/reset"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
