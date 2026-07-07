@@ -4,11 +4,11 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Sparkles, Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = createClientComponentClient();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -44,7 +44,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+        redirectTo: "https://studyforge-ai.vercel.app/auth/callback",
       },
     });
     if (error) {
@@ -124,7 +124,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-sm font-bold text-white border border-indigo-400/35 hover:border-indigo-400 glow-btn flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 mt-6"
+            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-sm font-bold text-white border border-purple-500/25 hover:border-pink-400 glow-btn flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 mt-6 shadow-md shadow-purple-500/10"
           >
             {isLoading ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
             <span>{isLoading ? "Signing in..." : "Sign In"}</span>
@@ -143,7 +143,7 @@ export default function LoginPage() {
         <button
           onClick={handleGoogleOAuth}
           disabled={isGoogleLoading}
-          className="w-full py-2.5 rounded-xl bg-slate-900/40 hover:bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-300 hover:text-white flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+          className="w-full py-2.5 rounded-xl bg-slate-900/40 hover:bg-slate-900 border border-slate-800 hover:border-pink-500/40 text-xs font-semibold text-slate-300 hover:text-white flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
         >
           {isGoogleLoading ? (
             <Loader2 size={16} className="animate-spin" />

@@ -134,7 +134,7 @@ export default function RegisterPage() {
           </div>
 
           <button type="submit" disabled={isLoading}
-            className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-sm font-bold text-white border border-indigo-400/35 hover:border-indigo-400 glow-btn flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 mt-6">
+            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-sm font-bold text-white border border-purple-500/25 hover:border-pink-400 glow-btn flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 mt-6 shadow-md shadow-purple-500/10">
             {isLoading ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
             <span>{isLoading ? "Forging Account..." : "Create Account"}</span>
           </button>
