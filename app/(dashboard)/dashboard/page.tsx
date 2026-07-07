@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import AppLayout from "@/components/AppLayout";
 import { createClient } from "@/lib/supabase/client";
 import {
   Flame, Clock, CheckCircle2, Calendar, Sparkles,
-  Play, Plus, TrendingUp, Award, Loader2
+  Play, Plus, TrendingUp, Award, Loader2, Pause, SkipForward, Music, Volume2
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -38,6 +38,73 @@ export default function Dashboard() {
   const [savingTask, setSavingTask] = useState(false);
   const [fullName, setFullName] = useState("");
   const [activeTask, setActiveTask] = useState<string | null>(null);
+
+  // Background Focus Music Player States
+  const [musicPlaying, setMusicPlaying] = useState(false);
+  const [currentTrackIdx, setCurrentTrackIdx] = useState(0);
+  const [musicVolume, setMusicVolume] = useState(0.5);
+  const [showMusicControls, setShowMusicControls] = useState(false);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+
+  const tracks = [
+    { name: "Focus Lofi", url: "https://cdn.pixabay.com/audio/1/lofi-study-112191.mp3" },
+    { name: "Chill Lofi", url: "https://cdn.pixabay.com/audio/2/chill-lofi-103574.mp3" },
+    { name: "Rain on Window", url: "https://cdn.pixabay.com/audio/3/rain-on-window-102353.mp3" }
+  ];
+
+  // Initialize and clean up background music player
+  useEffect(() => {
+    audioPlayerRef.current = new Audio();
+    audioPlayerRef.current.volume = musicVolume;
+
+    const handleTrackEnd = () => {
+      setCurrentTrackIdx((prev) => (prev + 1) % tracks.length);
+      setMusicPlaying(true);
+    };
+
+    audioPlayerRef.current.addEventListener("ended", handleTrackEnd);
+
+    return () => {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current.removeEventListener("ended", handleTrackEnd);
+        audioPlayerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!audioPlayerRef.current) return;
+    audioPlayerRef.current.volume = musicVolume;
+  }, [musicVolume]);
+
+  useEffect(() => {
+    if (!audioPlayerRef.current) return;
+
+    const track = tracks[currentTrackIdx];
+    if (audioPlayerRef.current.src !== track.url) {
+      audioPlayerRef.current.src = track.url;
+      audioPlayerRef.current.load();
+    }
+
+    if (musicPlaying) {
+      audioPlayerRef.current.play().catch((err) => {
+        console.error("Audio playback blocked/failed:", err);
+        setMusicPlaying(false);
+      });
+    } else {
+      audioPlayerRef.current.pause();
+    }
+  }, [currentTrackIdx, musicPlaying]);
+
+  const handleNextTrack = () => {
+    setCurrentTrackIdx((prev) => (prev + 1) % tracks.length);
+    setMusicPlaying(true);
+  };
+
+  const togglePlayPause = () => {
+    setMusicPlaying(!musicPlaying);
+  };
 
   const handleStartSession = (title: string) => {
     setActiveTask(title);
@@ -343,6 +410,82 @@ export default function Dashboard() {
                 <Play className="w-3.5 h-3.5 shrink-0 opacity-60 group-hover:opacity-100" />
               </a>
             ))}
+
+            {/* Focus Music Toggle & Player Controls */}
+            <div className="border-t border-slate-800/40 pt-4 mt-4 text-left">
+              <button
+                onClick={() => setShowMusicControls(!showMusicControls)}
+                className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer ${
+                  showMusicControls
+                    ? "border-pink-500/35 bg-pink-500/5 text-pink-300"
+                    : "border-slate-900 bg-slate-950/20 text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Music size={16} className={musicPlaying ? "animate-pulse text-pink-400" : ""} />
+                  <div>
+                    <span className="text-xs font-bold block">Focus Music Player</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5 block">
+                      {musicPlaying ? `Playing: ${tracks[currentTrackIdx].name}` : "Study beats channel"}
+                    </span>
+                  </div>
+                </div>
+                {/* Waveform Equalizer animation */}
+                {musicPlaying && (
+                  <div className="flex items-end gap-0.75 h-5 px-2 shrink-0">
+                    <span className="w-0.75 bg-pink-400 rounded-full animate-bar-1" />
+                    <span className="w-0.75 bg-pink-400 rounded-full animate-bar-2" />
+                    <span className="w-0.75 bg-pink-400 rounded-full animate-bar-3" />
+                    <span className="w-0.75 bg-pink-400 rounded-full animate-bar-4" />
+                    <span className="w-0.75 bg-pink-400 rounded-full animate-bar-5" />
+                  </div>
+                )}
+              </button>
+
+              {showMusicControls && (
+                <div className="mt-3 p-3.5 rounded-xl bg-slate-950/40 border border-slate-900/60 flex flex-col gap-3 animate-in slide-in-from-top-2 duration-150">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-semibold text-slate-300">Lofi Beats</span>
+                    <span className="text-[10px] text-slate-505 font-bold bg-slate-900 border border-slate-850 px-2 py-0.5 rounded">
+                      Track {currentTrackIdx + 1}/3
+                    </span>
+                  </div>
+
+                  {/* Player actions row */}
+                  <div className="flex items-center justify-between gap-4 mt-1 bg-slate-900/40 border border-slate-900 p-2 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={togglePlayPause}
+                        className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 border border-purple-500/30 flex items-center justify-center text-white cursor-pointer shadow-md hover:scale-105 transition-all"
+                        title={musicPlaying ? "Pause" : "Play"}
+                      >
+                        {musicPlaying ? <Pause size={14} /> : <Play size={14} className="ml-0.5 fill-white" />}
+                      </button>
+                      <button
+                        onClick={handleNextTrack}
+                        className="p-1.5 rounded-lg border border-slate-800 hover:border-slate-700 bg-slate-900/50 text-slate-400 hover:text-white transition-all cursor-pointer"
+                        title="Next Track"
+                      >
+                        <SkipForward size={14} />
+                      </button>
+                    </div>
+
+                    <div className="flex-1 flex items-center gap-2 min-w-0">
+                      <Volume2 size={13} className="text-slate-500 shrink-0" />
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={musicVolume}
+                        onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
+                        className="flex-1 accent-pink-550 h-1 rounded-lg bg-slate-800 outline-none cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
