@@ -44,7 +44,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: "https://studyforge-ai.vercel.app/auth/callback",
+        redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
     if (error) {
