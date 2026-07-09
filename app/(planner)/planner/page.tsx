@@ -309,7 +309,7 @@ export default function PlannerPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const loadPlan = (plan: StudyPlan) => {
+  function loadPlan(plan: StudyPlan) {
     setActivePlanId(plan.id);
     setExamDate(plan.prompt.examDate);
     setSubjects(plan.prompt.subjects);
@@ -319,7 +319,7 @@ export default function PlannerPage() {
     setWeeklyPlan(plan.generatedText.weeklyPlan);
     setDailySessions(plan.generatedText.dailySessions);
     setPlanGenerated(true);
-  };
+  }
 
   const handleGenerate = async () => {
     setIsGenerating(true);

@@ -4,9 +4,11 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { Sparkles, Mail, Lock, User, Target, ArrowRight, Loader2, CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
 
 export default function RegisterPage() {
+  const router = useRouter();
   const supabase = createClient();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -14,7 +16,6 @@ export default function RegisterPage() {
   const [goal, setGoal] = useState("GPA 4.0");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-  const [success, setSuccess] = useState(false);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,6 +25,12 @@ export default function RegisterPage() {
     }
     if (password.length < 8) {
       setErrorMsg("Password must be at least 8 characters.");
+      return;
+    }
+
+    // Client-side validation: check if email includes '@' and '.'
+    if (!email.includes("@") || !email.includes(".")) {
+      setErrorMsg("Please enter a valid email address.");
       return;
     }
 
@@ -46,29 +53,11 @@ export default function RegisterPage() {
     }
 
     setIsLoading(false);
-    setSuccess(true);
     confetti({ particleCount: 80, spread: 50, origin: { y: 0.6 } });
+    router.push("/login?signup=success");
   };
 
-  if (success) {
-    return (
-      <div className="min-h-screen bg-[#090a12] text-slate-100 flex flex-col justify-center items-center px-4 font-sans">
-        <div className="w-full max-w-md glass-panel rounded-3xl p-10 border border-slate-800/80 shadow-2xl text-center">
-          <CheckCircle2 className="w-12 h-12 text-teal-400 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-white">Check Your Email!</h2>
-          <p className="text-sm text-slate-400 mt-2 leading-relaxed">
-            We sent a confirmation link to <span className="text-indigo-400 font-semibold">{email}</span>. Click it to activate your StudyForge account.
-          </p>
-          <Link
-            href="/login"
-            className="mt-6 inline-block px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-sm font-bold text-white transition-all"
-          >
-            Back to Sign In
-          </Link>
-        </div>
-      </div>
-    );
-  }
+
 
   return (
     <div className="min-h-screen bg-[#090a12] text-slate-100 flex flex-col justify-center items-center px-4 relative font-sans">
@@ -76,7 +65,7 @@ export default function RegisterPage() {
 
       <div className="flex items-center gap-3 mb-8">
         <Link href="/" className="flex items-center gap-2">
-          <div className="p-2 rounded-xl bg-indigo-600/30 border border-indigo-500/30 flex items-center justify-center">
+          <div className="p-2 rounded-xl bg-indigo-650/30 border border-indigo-500/30 flex items-center justify-center">
             <Sparkles className="w-5 h-5 text-indigo-400 glow-text" />
           </div>
           <span className="font-bold text-lg text-white tracking-wide text-gradient font-sans">StudyForge AI</span>
@@ -96,7 +85,7 @@ export default function RegisterPage() {
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Full Name</label>
             <div className="relative">
               <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
-              <input type="text" placeholder="Your Full Name" value={name} onChange={(e) => setName(e.target.value)}
+              <input type="text" placeholder="Your Full Name" value={name} onChange={(e) => setName(e.target.value)} required
                 className="w-full bg-slate-950/40 border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/40 transition-all" />
             </div>
           </div>
@@ -105,7 +94,7 @@ export default function RegisterPage() {
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Email Address</label>
             <div className="relative">
               <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
-              <input type="email" placeholder="you@university.edu" value={email} onChange={(e) => setEmail(e.target.value)}
+              <input type="email" name="email" id="new-email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="new-email"
                 className="w-full bg-slate-950/40 border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/40 transition-all" />
             </div>
           </div>

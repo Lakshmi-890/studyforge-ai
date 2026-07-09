@@ -1,10 +1,10 @@
 "use client";
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Sparkles, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { toast } from "react-hot-toast";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -13,10 +13,31 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const router = useRouter();
+  const searchParams = useSearchParams(); // 👈 idhi null avvachu
   const supabase = createClient();
+
+  useEffect(() => {
+    if (!searchParams) return; // 👈 Null check add chesam
+
+    const signup = searchParams.get("signup");
+    if (signup === "success") {
+      setEmail("");
+      setPassword("");
+      toast.success("Account created successfully! Please log in.");
+    }
+  }, [searchParams]);
+
+  //... rest of your code same
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validation
+    if (!email.includes("@") || !email.includes(".")) {
+      setErrorMsg("Please enter a valid email address.");
+      return;
+    }
+
     setLoading(true);
     setErrorMsg("");
 
@@ -29,9 +50,7 @@ export default function LoginPage() {
       setErrorMsg(error.message);
       setLoading(false);
     } else {
-      // router.refresh() Next.js client-side route cache ni clear chestundi mariyu cookies ni server side lo update chestundi.
       router.refresh();
-      // User ni dashboard page ki redirect chestundi.
       router.push("/dashboard");
     }
   };
@@ -44,7 +63,7 @@ export default function LoginPage() {
       {/* Floating Logo */}
       <div className="flex items-center gap-3 mb-8">
         <Link href="/" className="flex items-center gap-2">
-          <div className="p-2 rounded-xl bg-indigo-600/30 border border-indigo-500/30 flex items-center justify-center">
+          <div className="p-2 rounded-xl bg-indigo-650/30 border border-indigo-500/30 flex items-center justify-center">
             <Sparkles className="w-5 h-5 text-indigo-400 glow-text" />
           </div>
           <span className="font-bold text-lg text-white tracking-wide text-gradient font-sans">
@@ -75,11 +94,14 @@ export default function LoginPage() {
               <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
               <input
                 type="email"
-                placeholder="you@school.edu"
+                name="email"
+                id="email"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-slate-950/40 border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/40 transition-all"
                 required
+                autoComplete="email" // ✅ Browser uses email
               />
             </div>
           </div>

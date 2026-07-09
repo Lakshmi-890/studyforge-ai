@@ -43,6 +43,9 @@ export default function MaterialsPage() {
   const [loadingMaterials, setLoadingMaterials] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [activeTab, setActiveTab] = useState<"file" | "text">("file");
+  const [pasteTitle, setPasteTitle] = useState("");
+  const [pasteText, setPasteText] = useState("");
 
   // Flashcards state
   const [showFlashcards, setShowFlashcards] = useState(false);
@@ -215,6 +218,85 @@ export default function MaterialsPage() {
     }
   };
 
+  // Handle pasted text submission
+  const handleTextSubmit = async () => {
+    if (!pasteTitle.trim()) {
+      toast.error("Please enter a title for your notes.");
+      return;
+    }
+    if (!pasteText.trim() || pasteText.trim().length < 50) {
+      toast.error("Please paste at least 50 characters of study notes.");
+      return;
+    }
+
+    setIsUploading(true);
+    const toastId = toast.loading(`Uploading notes: ${pasteTitle}...`);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Please log in to upload materials.");
+
+      // Convert text to a Blob/File representation
+      const cleanTitle = pasteTitle.trim().replace(/[^a-zA-Z0-9.]/g, "_");
+      const filename = cleanTitle.toLowerCase().endsWith(".txt") ? cleanTitle : `${cleanTitle}.txt`;
+      const storagePath = `${user.id}/${Date.now()}_${filename}`;
+
+      const textBlob = new Blob([pasteText], { type: "text/plain" });
+      const { error: uploadError } = await supabase.storage
+        .from("materials")
+        .upload(storagePath, textBlob);
+
+      if (uploadError) throw uploadError;
+
+      // Register material in DB table
+      const { data: material, error: insertError } = await supabase
+        .from("materials")
+        .insert({
+          user_id: user.id,
+          filename: filename,
+          storage_path: storagePath,
+          file_size_bytes: textBlob.size,
+          mime_type: "text/plain",
+          processing_status: "pending",
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      // Add to list immediately
+      setMaterialsList((prev) => [material as Material, ...prev]);
+      toast.loading("Parsing notes and generating AI flashcards/quizzes...", { id: toastId });
+
+      // Trigger processing API
+      const response = await fetch("/api/materials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ materialId: material.id }),
+      });
+
+      const resData = await response.json();
+      if (!response.ok) throw new Error(resData.error || "Failed to process material");
+
+      toast.success(`"${filename}" successfully parsed!`, { id: toastId });
+      confetti({
+        particleCount: 50,
+        spread: 40,
+        colors: ["#14b8a6", "#6366f1"],
+      });
+
+      // Reset fields
+      setPasteTitle("");
+      setPasteText("");
+      fetchMaterials();
+    } catch (err: any) {
+      console.error("Text processing error:", err);
+      toast.error(err.message || "Failed to process text", { id: toastId });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   // Delete material
   const handleDeleteFile = async (id: string, storagePath: string) => {
     if (!confirm("Are you sure you want to delete this document? This will remove all associated flashcards and quizzes.")) return;
@@ -347,40 +429,117 @@ export default function MaterialsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 text-left">
         {/* Upload Zone */}
         <div className="lg:col-span-1 space-y-6">
-          <div
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            className={`glass-panel rounded-3xl p-6 border transition-all shadow-xl flex flex-col items-center text-center justify-center min-h-[250px] relative overflow-hidden ${
-              isDragging ? "border-indigo-500 bg-indigo-950/15" : "border-slate-800/80"
-            }`}
-          >
-            <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/5 to-purple-500/5 pointer-events-none" />
-            
-            {isUploading ? (
-              <div className="flex flex-col items-center">
-                <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
-                <span className="text-xs font-bold text-white block">AI Parsing Document...</span>
-                <p className="text-[10px] text-slate-500 mt-1 animate-pulse">Extracting concepts & definitions</p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center">
-                <div className="p-4 rounded-full bg-slate-900 border border-slate-850 text-indigo-400 mb-4 hover:scale-110 transition-transform">
-                  <UploadCloud size={28} />
-                </div>
-                <span className="text-xs font-bold text-slate-200 block">Drag & drop files here</span>
-                <p className="text-[10px] text-slate-500 mt-1 max-w-[200px] leading-normal">
-                  Supports PDF, DOCX, PNG, JPG (Max 10MB)
-                </p>
-                <button
-                  onClick={handleBrowseClick}
-                  className="mt-5 px-4 py-2 rounded-xl bg-indigo-650 hover:bg-indigo-600 text-xs font-bold text-white border border-indigo-500/30 glow-btn transition-all cursor-pointer"
-                >
-                  Browse Files
-                </button>
-              </div>
-            )}
+          {/* Tabs */}
+          <div className="flex gap-2 p-1 bg-slate-900 border border-slate-800/80 rounded-xl">
+            <button
+              onClick={() => setActiveTab('file')}
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                activeTab === 'file'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Upload Document
+            </button>
+            <button
+              onClick={() => setActiveTab('text')}
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                activeTab === 'text'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Paste Text
+            </button>
           </div>
+
+          {activeTab === "file" ? (
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`glass-panel rounded-3xl p-6 border transition-all shadow-xl flex flex-col items-center text-center justify-center min-h-[250px] relative overflow-hidden ${
+                isDragging ? "border-indigo-500 bg-indigo-950/15" : "border-slate-800/80"
+              }`}
+            >
+              <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/5 to-purple-500/5 pointer-events-none" />
+              
+              {isUploading ? (
+                <div className="flex flex-col items-center">
+                  <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
+                  <span className="text-xs font-bold text-white block">AI Parsing Document...</span>
+                  <p className="text-[10px] text-slate-500 mt-1 animate-pulse">Extracting concepts & definitions</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <div className="p-4 rounded-full bg-slate-900 border border-slate-850 text-indigo-400 mb-4 hover:scale-110 transition-transform">
+                    <UploadCloud size={28} />
+                  </div>
+                  <span className="text-xs font-bold text-slate-200 block">Drag & drop files here</span>
+                  <p className="text-[10px] text-slate-500 mt-1 max-w-[200px] leading-normal">
+                    Supports PDF, DOCX, PNG, JPG (Max 10MB)
+                  </p>
+                  <button
+                    onClick={handleBrowseClick}
+                    className="mt-5 px-4 py-2 rounded-xl bg-indigo-650 hover:bg-indigo-600 text-xs font-bold text-white border border-indigo-500/30 glow-btn transition-all cursor-pointer"
+                  >
+                    Browse Files
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="glass-panel rounded-3xl p-6 border border-slate-800/80 shadow-xl flex flex-col gap-4 text-left">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1 uppercase tracking-wider">
+                  Notes Title
+                </label>
+                <input
+                  type="text"
+                  value={pasteTitle}
+                  onChange={(e) => setPasteTitle(e.target.value)}
+                  placeholder="e.g. NumPy Arrays, History Lecture 1"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-650 focus:outline-none focus:border-indigo-500"
+                  disabled={isUploading}
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1 uppercase tracking-wider">
+                  Paste Study Text
+                </label>
+                <textarea
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                  placeholder="Paste your syllabus, textbook pages, or lecture notes here (minimum 50 characters)..."
+                  rows={8}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-650 focus:outline-none focus:border-indigo-500 resize-none"
+                  disabled={isUploading}
+                />
+                <span className="text-[9px] text-slate-500 mt-1 block">
+                  {pasteText.length} characters (recommended 100 - 15,000)
+                </span>
+              </div>
+
+              <button
+                onClick={handleTextSubmit}
+                disabled={isUploading}
+                className="w-full py-2.5 rounded-xl bg-indigo-650 hover:bg-indigo-600 text-xs font-bold text-white border border-indigo-500/30 glow-btn transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Processing Text...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-300 animate-pulse" />
+                    <span>Generate Study Material</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
 
           <div className="p-4 rounded-2xl bg-indigo-950/15 border border-indigo-900/20 flex gap-3 text-xs leading-normal text-slate-350 text-left">
             <AlertCircle className="w-4.5 h-4.5 text-indigo-400 shrink-0 mt-0.5" />
