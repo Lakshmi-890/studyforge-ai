@@ -107,6 +107,7 @@ create table if not exists public.tasks (
   user_id uuid not null references auth.users(id) on delete cascade,
   title text not null,
   subject text,
+  duration_minutes integer,
   status text not null default 'todo' check (status in ('todo', 'in_progress', 'done')),
   due_date date,
   priority text default 'medium' check (priority in ('low', 'medium', 'high')),

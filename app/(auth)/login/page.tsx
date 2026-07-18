@@ -20,7 +20,7 @@ function LoginForm() {
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    const signup = searchParams.get("signup");
+    const signup = searchParams?.get("signup");
     if (signup === "success") {
       setEmail("");
       setPassword("");

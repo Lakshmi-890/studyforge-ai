@@ -750,10 +750,16 @@ export default function MaterialsPage() {
                           key={optIdx}
                           onClick={() => handleSelectQuizAnswer(qIdx, opt)}
                           disabled={quizScore !== null}
-                          className={`w-full p-2.5 rounded-xl border text-xs text-left transition-all cursor-pointer ${
-                            isSelected
-                              ? "bg-purple-600/20 border-purple-500/50 text-purple-300"
-                              : "bg-slate-950/20 border-slate-900 hover:border-slate-850 text-slate-400 hover:text-slate-200"
+                          className={`w-full p-2.5 rounded-xl border text-xs text-left transition-all ${
+                            quizScore !== null
+                              ? opt === q.correct
+                                ? "bg-emerald-600/20 border-emerald-500/60 text-emerald-300"
+                                : isSelected
+                                  ? "bg-rose-600/20 border-rose-500/60 text-rose-300"
+                                  : "bg-slate-950/10 border-slate-950/40 text-slate-650"
+                              : isSelected
+                                ? "bg-purple-600/20 border-purple-500/50 text-purple-300 animate-pulse"
+                                : "bg-slate-950/20 border-slate-900 hover:border-slate-850 text-slate-400 hover:text-slate-200 cursor-pointer"
                           }`}
                         >
                           {opt}

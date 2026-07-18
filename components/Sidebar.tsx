@@ -9,6 +9,7 @@ import {
   ChevronRight, Sparkles, Flame, Loader2, Clock
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { calculateStreak } from "@/lib/streak";
 
 interface SidebarProps {
   onToggle?: (collapsed: boolean) => void;
@@ -23,18 +24,34 @@ export default function Sidebar({ onToggle }: SidebarProps) {
   const [profile, setProfile] = useState<{ full_name: string; membership_tier: string; streak_count: number } | null>(null);
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchProfileAndStreak = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data } = await supabase
-        .from("profiles")
-        .select("full_name, membership_tier, streak_count")
-        .eq("id", user.id)
-        .single();
-      if (data) setProfile(data);
+
+      const [profileRes, tasksRes] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("full_name, membership_tier")
+          .eq("id", user.id)
+          .single(),
+        supabase
+          .from("tasks")
+          .select("status, updated_at")
+          .eq("user_id", user.id)
+      ]);
+
+      const computedStreak = tasksRes.data ? calculateStreak(tasksRes.data) : 0;
+
+      if (profileRes.data) {
+        setProfile({
+          full_name: profileRes.data.full_name || "",
+          membership_tier: profileRes.data.membership_tier || "free",
+          streak_count: computedStreak
+        });
+      }
     };
-    fetchProfile();
-  }, []);
+    fetchProfileAndStreak();
+  }, [supabase]);
 
   const toggleSidebar = () => {
     const newState = !isCollapsed;
@@ -55,7 +72,6 @@ export default function Sidebar({ onToggle }: SidebarProps) {
     { id: "tasks", name: "Tasks & Kanban", path: "/tasks", icon: CheckSquare },
     { id: "tutor", name: "AI Tutor Chat", path: "/tutor", icon: MessageSquare },
     { id: "materials", name: "Study Materials", path: "/materials", icon: UploadCloud },
-    { id: "admin", name: "Admin Dashboard", path: "/admin", icon: ShieldAlert },
     { id: "focus", name: "Focus Session", path: "/focus", icon: Clock },
   ];
 

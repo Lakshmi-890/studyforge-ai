@@ -30,15 +30,67 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
-  Play
+  Play,
+  Sunrise,
+  Sun,
+  Moon
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import toast from "react-hot-toast";
+import { calculateStreakFromDates, getLocalDateString } from "@/lib/streak";
+
+function adjustWeeklyTimeSlots(weeklyPlan: any[]): any[] {
+  if (!Array.isArray(weeklyPlan)) return weeklyPlan;
+  
+  const formatTime = (minutesSinceMidnight: number): string => {
+    let hour = Math.floor(minutesSinceMidnight / 60) % 24;
+    const minutes = minutesSinceMidnight % 60;
+    const ampm = hour >= 12 ? "PM" : "AM";
+    hour = hour % 12;
+    hour = hour ? hour : 12;
+    const minStr = minutes < 10 ? "0" + minutes : minutes;
+    const hrStr = hour < 10 ? "0" + hour : hour;
+    return `${hrStr}:${minStr} ${ampm}`;
+  };
+
+  return weeklyPlan.map((dayData) => {
+    const sessions = dayData.sessions || [];
+    let currentMinutes = 8 * 60; // 08:00 AM
+    const adjustedSessions = sessions.map((sess: any) => {
+      const startStr = formatTime(currentMinutes);
+      const endStr = formatTime(currentMinutes + 90);
+      currentMinutes += 90;
+      return {
+        ...sess,
+        time: `${startStr} - ${endStr}`
+      };
+    });
+    return {
+      ...dayData,
+      sessions: adjustedSessions
+    };
+  });
+}
+
+function getWeekdayDateString(targetDayName: string): string {
+  const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+  const targetIndex = days.indexOf(targetDayName.toLowerCase());
+  if (targetIndex === -1) return "";
+
+  const now = new Date();
+  const currentDayIndex = now.getDay();
+
+  let diff = targetIndex - currentDayIndex;
+  const targetDate = new Date();
+  targetDate.setDate(now.getDate() + diff);
+
+  return targetDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
 interface StudyPlan {
   id: string;
   title: string;
-  prompt: {
+  prompt?: {
     examDate: string;
     subjects: string;
     studyHours: string;
@@ -47,7 +99,8 @@ interface StudyPlan {
   };
   generatedText: {
     weeklyPlan: any[];
-    dailySessions: any[];
+    dailySessions: any;
+    weeks?: any[];
   };
   createdAt: string;
   pinned: boolean;
@@ -55,14 +108,6 @@ interface StudyPlan {
     completedTasks: Record<string, boolean>;
     completedTaskDates: Record<string, string>;
   };
-}
-
-interface Reminder {
-  id: string;
-  planId: string;
-  planTitle: string;
-  dateTime: string;
-  fired: boolean;
 }
 
 const templates = [
@@ -152,7 +197,6 @@ export default function PlannerPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [planGenerated, setPlanGenerated] = useState(false);
-  const [activeTab, setActiveTab] = useState("weekly");
 
   // Missed sessions / Rescheduling state
   const [missedAlert, setMissedAlert] = useState(true);
@@ -163,10 +207,7 @@ export default function PlannerPage() {
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
-  const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [showReminderModal, setShowReminderModal] = useState(false);
-  const [reminderDateTime, setReminderDateTime] = useState("");
-  const [permissionStatus, setPermissionStatus] = useState<string>("default");
+
 
   // Collapsible sidebar state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -182,52 +223,15 @@ export default function PlannerPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const [weeklyPlan, setWeeklyPlan] = useState<any[]>([]);
-  const [dailySessions, setDailySessions] = useState<any[]>([]);
 
   // Calculate Streak Helper
   const calculateStreak = (completedDates: string[]): number => {
-    if (!completedDates || completedDates.length === 0) return 0;
-    const uniqueDates = Array.from(new Set(completedDates)).sort();
-    let streak = 0;
-    const todayStr = new Date().toISOString().split("T")[0];
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split("T")[0];
-
-    let checkDate = new Date();
-    if (uniqueDates.includes(todayStr)) {
-      // start from today
-    } else if (uniqueDates.includes(yesterdayStr)) {
-      // start from yesterday
-      checkDate = yesterday;
-    } else {
-      return 0;
-    }
-
-    while (true) {
-      const dateStr = checkDate.toISOString().split("T")[0];
-      if (uniqueDates.includes(dateStr)) {
-        streak++;
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else {
-        break;
-      }
-    }
-    return streak;
+    return calculateStreakFromDates(completedDates);
   };
 
-  // Load plans & reminders from LocalStorage on mount
+  // Load plans from LocalStorage on mount
   useEffect(() => {
     const storedPlans = localStorage.getItem("studyforge_plans");
-    const storedReminders = localStorage.getItem("studyforge_reminders");
-
-    if (storedReminders) {
-      setReminders(JSON.parse(storedReminders));
-    }
-
-    if (typeof window !== "undefined" && "Notification" in window) {
-      setPermissionStatus(Notification.permission);
-    }
 
     if (storedPlans) {
       const parsed = JSON.parse(storedPlans);
@@ -238,28 +242,74 @@ export default function PlannerPage() {
       }
     } else {
       // Save initial mock plan as starting history
+      const today = new Date();
+      const formatMockDate = (date: Date): string => {
+        const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+        const m = months[date.getMonth()];
+        const d = String(date.getDate()).padStart(2, "0");
+        return `${m} ${d}`;
+      };
+
+      const w1Start = new Date(today);
+      const w1End = new Date(today); w1End.setDate(w1End.getDate() + 6);
+      const w2Start = new Date(today); w2Start.setDate(w2Start.getDate() + 7);
+      const w2End = new Date(today); w2End.setDate(w2End.getDate() + 13);
+      const w3Start = new Date(today); w3Start.setDate(w3Start.getDate() + 14);
+      const w3End = new Date(today); w3End.setDate(w3End.getDate() + 20);
+
       const initialMock: StudyPlan = {
         id: "mock-initial",
         title: "Calculus & Organic Chemistry Prep",
         prompt: {
-          examDate: "2026-07-20",
+          examDate: new Date(today.getTime() + 20 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
           subjects: "Calculus II, Organic Chemistry, Physics Mechanics",
           studyHours: "3",
           targetScore: "95%",
           weakTopics: "Integration by parts, Aromatic reactions, Fluid dynamics"
         },
         generatedText: {
-          weeklyPlan: [
-            { day: "Monday", sessions: [{ time: "09:00 AM", title: "Calculus: Integration by Parts (Weak Area Focus)", type: "Core Study", dur: "90m" }, { time: "02:00 PM", title: "Chemistry: Aromatic Rings", type: "Recap", dur: "60m" }] },
-            { day: "Tuesday", sessions: [{ time: "10:00 AM", title: "Physics: Fluid Dynamics Practice Problems", type: "Core Study", dur: "90m" }, { time: "04:00 PM", title: "Active Recall: Quiz 1", type: "Review", dur: "45m" }] },
-            { day: "Wednesday", sessions: [{ time: "09:00 AM", title: "Chemistry: Nucleophilic Substitution", type: "Core Study", dur: "90m" }, { time: "03:00 PM", title: "Calculus: Spaced Repetition Review", type: "Spaced Repet", dur: "60m" }] },
-            { day: "Thursday", sessions: [{ time: "11:00 AM", title: "Physics: Fluids & Pressure Equations", type: "Core Study", dur: "90m" }, { time: "02:00 PM", title: "Calculus: Integration Practice", type: "Practice", dur: "60m" }] },
-            { day: "Friday", sessions: [{ time: "09:00 AM", title: "Calculus & Chemistry Cross-Quiz", type: "Exam Prep", dur: "120m" }, { time: "04:00 PM", title: "Weekly progress audit & breakdown", type: "Audit", dur: "30m" }] }
-          ],
-          dailySessions: [
-            { time: "09:00 AM - 10:30 AM", title: "Calculus: Integration by Parts (Weak Area Focus)", desc: "Solve 15 integration by parts problems. Focus on trigonometry multipliers.", subject: "Calculus", type: "Core Study", status: "Due" },
-            { time: "10:30 AM - 10:45 AM", title: "Mindfulness Break (AI Recommendation)", desc: "Stretch, hydrate, and look away from screen.", subject: "Break", type: "AI Break", status: "Rest" },
-            { time: "02:00 PM - 03:00 PM", title: "Chemistry: Aromatic Compounds Review", desc: "Active recall flashcards for benzene reactions.", subject: "Chemistry", type: "Review", status: "Due" }
+          weeklyPlan: [],
+          dailySessions: {},
+          weeks: [
+            {
+              weekNumber: 1,
+              dateRange: `${formatMockDate(w1Start)} - ${formatMockDate(w1End)}`,
+              startDateStr: w1Start.toISOString(),
+              endDateStr: w1End.toISOString(),
+              weekGoal: "Complete Calculus (Integration by parts) & Chemistry Foundations",
+              tasks: [
+                { title: "Read Calculus: Integration by parts chapter & notes", type: "Core Study" },
+                { title: "Chemistry Benzene structure & Sn1/Sn2 reaction flashcards", type: "Core Study" },
+                { title: "Solve 30 practice problems on definite integrals", type: "Practice" },
+                { title: "Weekly progress audit and revision session", type: "Audit" }
+              ]
+            },
+            {
+              weekNumber: 2,
+              dateRange: `${formatMockDate(w2Start)} - ${formatMockDate(w2End)}`,
+              startDateStr: w2Start.toISOString(),
+              endDateStr: w2End.toISOString(),
+              weekGoal: "Master Physics Fluid Dynamics & Sn1/Sn2 Mechanisms",
+              tasks: [
+                { title: "Read Physics Fluid Dynamics chapter & Bernoulli's equation", type: "Core Study" },
+                { title: "Sn1/Sn2 organic chemistry mechanism practice quiz", type: "Practice" },
+                { title: "Solve 40 fluid dynamics and pressure worksheets", type: "Practice" },
+                { title: "Calculus active recall on integration formulas", type: "Review" }
+              ]
+            },
+            {
+              weekNumber: 3,
+              dateRange: `${formatMockDate(w3Start)} - ${formatMockDate(w3End)}`,
+              startDateStr: w3Start.toISOString(),
+              endDateStr: w3End.toISOString(),
+              weekGoal: "Final revision, active recall and full JEE standard mock exams",
+              tasks: [
+                { title: "Complete full chemistry chapter tests", type: "Exam Prep" },
+                { title: "Conduct weak area study audit on Integration", type: "Audit" },
+                { title: "Solve 2 full-length Mock exams (Calculus + Physics + Chem)", type: "Exam Prep" },
+                { title: "Revise physics Bernoulli equation and fluid worksheets", type: "Review" }
+              ]
+            }
           ]
         },
         createdAt: new Date().toISOString(),
@@ -275,49 +325,18 @@ export default function PlannerPage() {
     }
   }, []);
 
-  // Background reminder checker
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const stored = localStorage.getItem("studyforge_reminders");
-      if (!stored) return;
-      const currentReminders: Reminder[] = JSON.parse(stored);
-      let updated = false;
-      const now = new Date().getTime();
-
-      currentReminders.forEach((rem) => {
-        if (!rem.fired && new Date(rem.dateTime).getTime() <= now) {
-          if (typeof window !== "undefined" && "Notification" in window) {
-            if (Notification.permission === "granted") {
-              new Notification(`Time to study: ${rem.planTitle}`, {
-                body: "Your StudyForge session is scheduled now! Keep up the hard work.",
-                icon: "/favicon.ico"
-              });
-            }
-          }
-          rem.fired = true;
-          updated = true;
-          toast.success(`Study Reminder: ${rem.planTitle} starts now!`, { icon: "🔥", duration: 6000 });
-        }
-      });
-
-      if (updated) {
-        localStorage.setItem("studyforge_reminders", JSON.stringify(currentReminders));
-        setReminders(currentReminders);
-      }
-    }, 5000); // Check every 5 seconds
-
-    return () => clearInterval(interval);
-  }, []);
-
   function loadPlan(plan: StudyPlan) {
     setActivePlanId(plan.id);
-    setExamDate(plan.prompt.examDate);
-    setSubjects(plan.prompt.subjects);
-    setStudyHours(plan.prompt.studyHours);
-    setTargetScore(plan.prompt.targetScore);
-    setWeakTopics(plan.prompt.weakTopics);
-    setWeeklyPlan(plan.generatedText.weeklyPlan);
-    setDailySessions(plan.generatedText.dailySessions);
+    setExamDate(plan.prompt?.examDate || "");
+    setSubjects(plan.prompt?.subjects || "");
+    setStudyHours(plan.prompt?.studyHours || "");
+    setTargetScore(plan.prompt?.targetScore || "");
+    setWeakTopics(plan.prompt?.weakTopics || "");
+    
+    // Auto-adjust weekly plan time slots to match daily
+    const adjustedWeekly = adjustWeeklyTimeSlots(plan.generatedText?.weeklyPlan || []);
+    setWeeklyPlan(adjustedWeekly);
+    
     setPlanGenerated(true);
   }
 
@@ -357,8 +376,31 @@ export default function PlannerPage() {
         throw new Error(data.error || "Failed to generate study plan from Gemini.");
       }
 
-      if (data.weeklyPlan && data.dailySessions) {
+      const rawWeeks = data.weeks || [];
+      const hasWeeks = rawWeeks.length > 0;
+      const hasWeeklyPlan = !!data.weeklyPlan;
+
+      if (hasWeeks || hasWeeklyPlan) {
         const newPlanId = data.planId || `plan-${Date.now()}`;
+        
+        let initialWeeks = rawWeeks;
+        if (!hasWeeks && data.weeklyPlan) {
+          initialWeeks = [
+            {
+              weekNumber: 1,
+              weekTitle: "Study Schedule",
+              days: data.weeklyPlan
+            }
+          ];
+        }
+
+        const adjustedWeeks = initialWeeks.map((wk: any) => {
+          return {
+            ...wk,
+            days: adjustWeeklyTimeSlots(wk.days || [])
+          };
+        });
+
         const newPlan: StudyPlan = {
           id: newPlanId,
           title: `${subjects.split(",")[0]} prep — Exam on ${examDate}`,
@@ -370,8 +412,9 @@ export default function PlannerPage() {
             weakTopics
           },
           generatedText: {
-            weeklyPlan: data.weeklyPlan,
-            dailySessions: data.dailySessions
+            weeklyPlan: adjustedWeeks[0]?.days || [],
+            dailySessions: data.dailySessions || {},
+            weeks: adjustedWeeks
           },
           createdAt: new Date().toISOString(),
           pinned: false,
@@ -382,8 +425,7 @@ export default function PlannerPage() {
         };
 
         savePlanToHistory(newPlan);
-        setWeeklyPlan(data.weeklyPlan);
-        setDailySessions(data.dailySessions);
+        setWeeklyPlan(adjustedWeeks[0]?.days || []);
         setPlanGenerated(true);
         confetti({
           particleCount: 100,
@@ -499,7 +541,7 @@ export default function PlannerPage() {
         completedTasks[taskId] = isCompleted;
 
         if (isCompleted) {
-          completedTaskDates[taskId] = new Date().toISOString().split("T")[0];
+          completedTaskDates[taskId] = getLocalDateString(new Date());
         } else {
           delete completedTaskDates[taskId];
         }
@@ -513,7 +555,7 @@ export default function PlannerPage() {
         };
       });
       localStorage.setItem("studyforge_plans", JSON.stringify(updated));
-      
+
       // If we updated the active plan, sync daily sessions list completion locally
       const activeObj = updated.find(p => p.id === planId);
       if (activeObj) {
@@ -542,33 +584,63 @@ export default function PlannerPage() {
   const completedTasks = activePlan?.progress?.completedTasks || {};
   const completedTaskDates = activePlan?.progress?.completedTaskDates || {};
 
+  // Parse weeks list supporting both multi-week and single-week backwards compatibility
+  let weeksList: any[] = activePlan?.generatedText?.weeks || [];
+  if (activePlan && weeksList.length === 0 && activePlan.generatedText.weeklyPlan) {
+    weeksList = [
+      {
+        weekNumber: 1,
+        weekTitle: "Study Schedule",
+        days: activePlan.generatedText.weeklyPlan
+      }
+    ];
+  }
+
+  // Normalize weeks list to ensure wk.tasks exists
+  weeksList = weeksList.map((wk: any) => {
+    if (wk.tasks && Array.isArray(wk.tasks)) return wk;
+    
+    const tasks: any[] = [];
+    const days = wk.days || [];
+    days.forEach((dayData: any) => {
+      const sessions = dayData.sessions || [];
+      sessions.forEach((sess: any) => {
+        tasks.push({
+          title: `${dayData.day.substring(0, 3)}: ${sess.title}`,
+          type: sess.type || "Study"
+        });
+      });
+    });
+    return {
+      ...wk,
+      tasks
+    };
+  });
+
   // Calculate Streak & Completion
   const activeStreak = calculateStreak(Object.values(completedTaskDates));
-  
+
   let totalTasksCount = 0;
   let completedTasksCount = 0;
 
   if (activePlan) {
-    activePlan.generatedText.weeklyPlan.forEach((dayData: any) => {
-      dayData.sessions.forEach((sess: any, sIdx: number) => {
+    weeksList.forEach((wk: any) => {
+      const wkNum = wk.weekNumber;
+      const tasks = wk.tasks || [];
+      tasks.forEach((task: any, tIdx: number) => {
         totalTasksCount++;
-        const taskId = `weekly-${dayData.day}-${sIdx}`;
+        const taskId = weeksList.length > 1
+          ? `weekly-${wkNum}-${tIdx}`
+          : `weekly-${tIdx}`;
         if (completedTasks[taskId]) {
           completedTasksCount++;
         }
       });
     });
-    activePlan.generatedText.dailySessions.forEach((sess: any, dIdx: number) => {
-      totalTasksCount++;
-      const taskId = `daily-${dIdx}`;
-      if (completedTasks[taskId]) {
-        completedTasksCount++;
-      }
-    });
   }
 
-  const completionPercentage = totalTasksCount > 0 
-    ? Math.round((completedTasksCount / totalTasksCount) * 100) 
+  const completionPercentage = totalTasksCount > 0
+    ? Math.round((completedTasksCount / totalTasksCount) * 100)
     : 0;
 
   // jsPDF Download Generator
@@ -589,8 +661,11 @@ export default function PlannerPage() {
       doc.setFont("helvetica", "normal");
       doc.setTextColor(100, 116, 139);
       doc.text(`Created: ${new Date(activePlan.createdAt).toLocaleDateString()}`, 14, 30);
-      doc.text(`Target Exam: ${activePlan.prompt.examDate} | Daily Target: ${activePlan.prompt.studyHours}h | Target Score: ${activePlan.prompt.targetScore}`, 14, 35);
-      
+      const promptExamDate = activePlan.prompt?.examDate || "N/A";
+      const promptStudyHours = activePlan.prompt?.studyHours || "N/A";
+      const promptTargetScore = activePlan.prompt?.targetScore || "N/A";
+      doc.text(`Target Exam: ${promptExamDate} | Daily Target: ${promptStudyHours}h | Target Score: ${promptTargetScore}`, 14, 35);
+
       doc.setDrawColor(226, 232, 240);
       doc.line(14, 40, 196, 40);
 
@@ -602,7 +677,7 @@ export default function PlannerPage() {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
       doc.setTextColor(51, 65, 85);
-      const subjectsLines = doc.splitTextToSize(activePlan.prompt.subjects, 180);
+      const subjectsLines = doc.splitTextToSize(activePlan.prompt?.subjects || "N/A", 180);
       doc.text(subjectsLines, 14, 54);
 
       let currentY = 54 + (subjectsLines.length * 5) + 5;
@@ -614,41 +689,56 @@ export default function PlannerPage() {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
       doc.setTextColor(51, 65, 85);
-      const weakTopicsLines = doc.splitTextToSize(activePlan.prompt.weakTopics, 180);
+      const weakTopicsLines = doc.splitTextToSize(activePlan.prompt?.weakTopics || "N/A", 180);
       doc.text(weakTopicsLines, 14, currentY + 6);
 
       currentY = currentY + 6 + (weakTopicsLines.length * 5) + 10;
 
-      // Weekly breakdown
+      // Multi-week breakdown
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(79, 70, 229);
-      doc.text("Weekly Study Schedule", 14, currentY);
+      doc.text("Study Schedule Breakdown", 14, currentY);
       currentY += 8;
 
-      activePlan.generatedText.weeklyPlan.forEach((dayData: any) => {
-        if (currentY > 260) {
+      weeksList.forEach((wk: any) => {
+        if (currentY > 240) {
           doc.addPage();
           currentY = 22;
         }
 
-        doc.setFontSize(11);
+        doc.setFontSize(12);
         doc.setFont("helvetica", "bold");
-        doc.setTextColor(30, 27, 75);
-        doc.text(dayData.day, 14, currentY);
+        doc.setTextColor(79, 70, 229);
+        doc.text(`Week ${wk.weekNumber}: ${wk.dateRange}`, 14, currentY);
         currentY += 6;
 
-        dayData.sessions.forEach((sess: any) => {
-          if (currentY > 275) {
-            doc.addPage();
-            currentY = 22;
-          }
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(51, 65, 85);
+        doc.text(`Goal: ${wk.weekGoal || ""}`, 14, currentY);
+        currentY += 8;
+
+        const tasks = wk.tasks || [];
+        if (tasks.length === 0) {
           doc.setFontSize(9);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(51, 65, 85);
-          doc.text(`• [${sess.time}] (${sess.dur}) — ${sess.title} [${sess.type}]`, 18, currentY);
+          doc.setFont("helvetica", "italic");
+          doc.setTextColor(148, 163, 184);
+          doc.text("No tasks scheduled", 18, currentY);
           currentY += 5.5;
-        });
+        } else {
+          tasks.forEach((task: any) => {
+            if (currentY > 270) {
+              doc.addPage();
+              currentY = 22;
+            }
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(51, 65, 85);
+            doc.text(`• ${task.title} [${task.type || "Study"}]`, 18, currentY);
+            currentY += 5.5;
+          });
+        }
         currentY += 4;
       });
 
@@ -672,46 +762,7 @@ export default function PlannerPage() {
     }
   };
 
-  // Schedule Reminder Handler
-  const handleSetReminder = async () => {
-    if (!activePlanId || !activePlan) return;
 
-    if (typeof window === "undefined" || !("Notification" in window)) {
-      toast.error("Browser notifications are not supported in this browser.");
-      return;
-    }
-
-    let perm = Notification.permission;
-    if (perm === "default") {
-      perm = await Notification.requestPermission();
-      setPermissionStatus(perm);
-    }
-
-    if (perm === "denied") {
-      toast.error("Notification permission denied. Please allow notifications in browser settings.");
-      return;
-    }
-
-    if (!reminderDateTime) {
-      toast.error("Please pick a valid study target date & time.");
-      return;
-    }
-
-    const newReminder: Reminder = {
-      id: `rem-${Date.now()}`,
-      planId: activePlan.id,
-      planTitle: activePlan.title,
-      dateTime: reminderDateTime,
-      fired: false
-    };
-
-    const updated = [...reminders, newReminder];
-    localStorage.setItem("studyforge_reminders", JSON.stringify(updated));
-    setReminders(updated);
-    setShowReminderModal(false);
-    setReminderDateTime("");
-    toast.success(`Study reminder set for ${new Date(newReminder.dateTime).toLocaleString()}!`, { icon: "⏰" });
-  };
 
   // Sorted plans: Pinned first, then newest first
   const sortedPlans = [...plans].sort((a, b) => {
@@ -737,7 +788,7 @@ export default function PlannerPage() {
 
       {/* Main Grid containing History Sidebar, Parameters, Plan Viewer */}
       <div className="flex flex-col xl:flex-row gap-8 items-stretch">
-        
+
         {/* Toggleable "My Plans" Sidebar on the Left */}
         <div className={`transition-all duration-300 ${sidebarCollapsed ? "w-full xl:w-16" : "w-full xl:w-72"} shrink-0 flex flex-col`}>
           <div className="glass-panel rounded-3xl p-5 border border-slate-800/80 shadow-xl flex-1 flex flex-col text-left h-full">
@@ -748,7 +799,7 @@ export default function PlannerPage() {
                   <span>My Plans ({plans.length}/10)</span>
                 </h3>
               )}
-              <button 
+              <button
                 onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
                 className="p-1 rounded-md bg-slate-900 border border-slate-800 hover:border-indigo-500 text-slate-400 hover:text-white transition-all ml-auto"
                 title={sidebarCollapsed ? "Expand History" : "Collapse History"}
@@ -769,11 +820,10 @@ export default function PlannerPage() {
                       <div
                         key={plan.id}
                         onClick={() => !isEditing && loadPlan(plan)}
-                        className={`p-3 rounded-2xl border transition-all flex flex-col gap-2 cursor-pointer ${
-                          isActive 
+                        className={`p-3 rounded-2xl border transition-all flex flex-col gap-2 cursor-pointer ${isActive
                             ? "bg-indigo-600/10 border-indigo-500 text-indigo-300"
                             : "bg-slate-950/20 border-slate-900 hover:border-slate-800 text-slate-400 hover:text-slate-200"
-                        }`}
+                          }`}
                       >
                         <div className="flex items-start justify-between gap-1">
                           {isEditing ? (
@@ -840,11 +890,10 @@ export default function PlannerPage() {
                   <button
                     key={plan.id}
                     onClick={() => loadPlan(plan)}
-                    className={`p-2 rounded-xl border flex items-center justify-center relative ${
-                      plan.id === activePlanId 
-                        ? "bg-indigo-600/20 border-indigo-500 text-indigo-400" 
+                    className={`p-2 rounded-xl border flex items-center justify-center relative ${plan.id === activePlanId
+                        ? "bg-indigo-600/20 border-indigo-500 text-indigo-400"
                         : "bg-slate-900/40 border-slate-900 text-slate-600"
-                    }`}
+                      }`}
                     title={plan.title}
                   >
                     <BookOpen size={16} />
@@ -858,10 +907,10 @@ export default function PlannerPage() {
 
         {/* Configure Target Form & Planner Viewer Content */}
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
+
           {/* Configure Target Panel */}
           <div className="space-y-6 text-left">
-            
+
             {/* Subject Templates Row */}
             <div className="glass-panel rounded-3xl p-6 border border-slate-800/80 shadow-xl">
               <h3 className="text-xs font-bold text-white mb-3 uppercase tracking-wider flex items-center gap-2">
@@ -902,7 +951,7 @@ export default function PlannerPage() {
                     type="date"
                     value={examDate}
                     onChange={(e) => setExamDate(e.target.value)}
-                    className="w-full bg-slate-950/40 border border-slate-800 rounded-xl py-2.5 px-3.5 text-xs text-slate-200 outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/40 transition-all"
+                    className="w-full bg-slate-950/40 border border-slate-800 rounded-xl py-2.5 px-3.5 text-base md:text-xs text-slate-200 outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/40 transition-all"
                   />
                 </div>
 
@@ -915,7 +964,7 @@ export default function PlannerPage() {
                     value={subjects}
                     onChange={(e) => setSubjects(e.target.value)}
                     placeholder="e.g. Calculus, Chemistry"
-                    className="w-full bg-slate-950/40 border border-slate-800 rounded-xl py-2.5 px-3.5 text-xs text-slate-200 outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/40 transition-all"
+                    className="w-full bg-slate-950/40 border border-slate-800 rounded-xl py-2.5 px-3.5 text-base md:text-xs text-slate-200 outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/40 transition-all"
                   />
                 </div>
 
@@ -927,7 +976,7 @@ export default function PlannerPage() {
                     <select
                       value={studyHours}
                       onChange={(e) => setStudyHours(e.target.value)}
-                      className="w-full bg-slate-950/40 border border-slate-800 rounded-xl py-2.5 px-3 text-xs text-slate-350 outline-none focus:border-indigo-500/80 cursor-pointer"
+                      className="w-full bg-slate-950/40 border border-slate-800 rounded-xl py-2.5 px-3 text-base md:text-xs text-slate-350 outline-none focus:border-indigo-500/80 cursor-pointer"
                     >
                       <option value="1">1 Hour</option>
                       <option value="2">2 Hours</option>
@@ -944,7 +993,7 @@ export default function PlannerPage() {
                       value={targetScore}
                       onChange={(e) => setTargetScore(e.target.value)}
                       placeholder="e.g. A+ or 90%"
-                      className="w-full bg-slate-950/40 border border-slate-800 rounded-xl py-2.5 px-3 text-xs text-slate-200 outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/40 transition-all"
+                      className="w-full bg-slate-950/40 border border-slate-800 rounded-xl py-2.5 px-3 text-base md:text-xs text-slate-200 outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/40 transition-all"
                     />
                   </div>
                 </div>
@@ -958,7 +1007,7 @@ export default function PlannerPage() {
                     onChange={(e) => setWeakTopics(e.target.value)}
                     placeholder="Integration, Benzene structures"
                     rows={3}
-                    className="w-full bg-slate-950/40 border border-slate-800 rounded-xl py-2.5 px-3.5 text-xs text-slate-200 placeholder-slate-650 outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/40 transition-all"
+                    className="w-full bg-slate-950/40 border border-slate-800 rounded-xl py-2.5 px-3.5 text-base md:text-xs text-slate-200 placeholder-slate-650 outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/40 transition-all"
                   />
                 </div>
 
@@ -1031,7 +1080,7 @@ export default function PlannerPage() {
               </div>
             ) : planGenerated && activePlan ? (
               <div className="glass-panel rounded-3xl p-6 border border-slate-800/80 shadow-xl space-y-6">
-                
+
                 {/* Progress Tracker Widget & Utilities */}
                 <div className="p-4 rounded-2xl bg-indigo-950/25 border border-indigo-900/30 flex flex-col md:flex-row items-center justify-between gap-4">
                   {/* Streak & Completion */}
@@ -1051,24 +1100,16 @@ export default function PlannerPage() {
                         <span>{completionPercentage}%</span>
                       </div>
                       <div className="w-full bg-slate-900 border border-slate-800 rounded-full h-2 overflow-hidden">
-                        <div 
-                          className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full transition-all duration-500" 
+                        <div
+                          className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full transition-all duration-500"
                           style={{ width: `${completionPercentage}%` }}
                         />
                       </div>
                     </div>
                   </div>
 
-                  {/* Actions: Download PDF & Reminders */}
+                  {/* Actions: Download PDF */}
                   <div className="flex items-center gap-3 w-full md:w-auto shrink-0 justify-end">
-                    <button
-                      onClick={() => setShowReminderModal(true)}
-                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer"
-                      title="Set reminder"
-                    >
-                      <Bell size={13} className="text-indigo-400" />
-                      <span>Set Reminder</span>
-                    </button>
                     <button
                       onClick={downloadPlanAsPDF}
                       className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-xs font-bold text-white border border-purple-500/35 hover:border-pink-400 transition-all cursor-pointer shadow-lg hover:shadow-purple-500/20"
@@ -1079,22 +1120,13 @@ export default function PlannerPage() {
                   </div>
                 </div>
 
-                {/* Tab Selector & Exam Meta */}
+                {/* Exam Meta */}
                 <div className="flex justify-between items-center pb-4 border-b border-slate-800/40">
-                  <div className="flex gap-2">
-                    {["daily", "weekly", "monthly"].map((tab) => (
-                      <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        className={`px-3.5 py-1.5 rounded-lg text-xs font-bold capitalize transition-all cursor-pointer ${
-                          activeTab === tab
-                            ? "bg-indigo-600/25 border border-indigo-500/45 text-indigo-300"
-                            : "text-slate-400 hover:text-slate-200 border border-transparent"
-                        }`}
-                      >
-                        {tab} Plan
-                      </button>
-                    ))}
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">Weekly Study Plan</h3>
+                    <span className="text-[10px] font-extrabold bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/35">
+                      Weeks Remaining: {weeksList.length}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold bg-slate-950/40 border border-slate-900 px-2 py-1 rounded">
                     <Info size={11} className="text-slate-500" />
@@ -1102,157 +1134,112 @@ export default function PlannerPage() {
                   </div>
                 </div>
 
-                {/* Tab Content 1: Daily */}
-                {activeTab === "daily" && (
-                  <div className="space-y-4">
-                    {dailySessions.map((session, idx) => {
-                      const taskId = `daily-${idx}`;
-                      const isCompleted = !!completedTasks[taskId];
+                <div className="space-y-6">
+                  {/* Horizontal scroll of spacious week cards */}
+                  <div className="flex overflow-x-auto pb-4 gap-6 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent snap-x">
+                    {weeksList.map((wk: any) => {
+                      const today = new Date();
+                      today.setHours(0,0,0,0);
+                      
+                      const start = wk.startDateStr ? new Date(wk.startDateStr) : null;
+                      const end = wk.endDateStr ? new Date(wk.endDateStr) : null;
+                      if (start) start.setHours(0,0,0,0);
+                      if (end) end.setHours(23,59,59,999);
+                      
+                      const isCurrentWeek = start && end ? (today >= start && today <= end) : (wk.weekNumber === 1);
+                      
+                      const totalTasks = wk.tasks?.length || 0;
+                      const completedCount = wk.tasks?.filter((t: any, tIdx: number) => {
+                        const taskId = weeksList.length > 1
+                          ? `weekly-${wk.weekNumber}-${tIdx}`
+                          : `weekly-${tIdx}`;
+                        return !!completedTasks[taskId];
+                      }).length || 0;
+                      
+                      const progressPercent = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0;
+
                       return (
                         <div
-                          key={idx}
-                          className={`p-4 rounded-2xl bg-slate-950/20 border transition-all flex items-start gap-4 ${
-                            isCompleted 
-                              ? "border-indigo-950/50 bg-indigo-950/5 opacity-60" 
-                              : "border-slate-900/60 hover:border-slate-800/60"
+                          key={wk.weekNumber}
+                          className={`snap-start shrink-0 w-[290px] sm:w-[320px] md:w-[360px] p-6 rounded-3xl border text-left flex flex-col justify-between transition-all min-h-[300px] ${
+                            isCurrentWeek
+                              ? "border-amber-500 bg-amber-500/5 shadow-lg shadow-amber-500/5"
+                              : "border-slate-800 bg-slate-950/20 hover:border-slate-700/60"
                           }`}
                         >
-                          <button
-                            onClick={() => toggleTaskCompletion(activePlanId!, taskId)}
-                            className={`mt-1 shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-all cursor-pointer ${
-                              isCompleted
-                                ? "bg-indigo-600 border-indigo-500 text-white"
-                                : "border-slate-800 hover:border-indigo-500 text-transparent bg-slate-950/40"
-                            }`}
-                          >
-                            <Check size={12} strokeWidth={3.5} />
-                          </button>
-                          <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-850 text-indigo-400 text-xs font-bold tracking-tight text-center shrink-0">
-                            {session.time.split(" ")[0]}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <h4 className={`text-sm font-bold truncate ${isCompleted ? "line-through text-slate-550" : "text-white"}`}>
-                                {session.title}
-                              </h4>
-                              <span
-                                className={`text-[9px] px-2 py-0.25 font-bold rounded-full border ${
-                                  session.status === "Rest"
-                                    ? "bg-teal-500/10 border-teal-500/35 text-teal-400"
-                                    : "bg-indigo-500/10 border-indigo-500/35 text-indigo-400"
-                                }`}
-                              >
-                                {session.type}
+                          <div>
+                            {/* Header */}
+                            <div className="flex justify-between items-center mb-3">
+                              <span className={`text-xs font-black uppercase tracking-wider ${isCurrentWeek ? "text-amber-400" : "text-indigo-400"}`}>
+                                WEEK {wk.weekNumber}: {wk.dateRange}
                               </span>
+                              {isCurrentWeek && (
+                                <span className="text-[9px] font-black bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/30">
+                                  CURRENT WEEK
+                                </span>
+                              )}
                             </div>
-                            <p className={`text-xs mt-1 leading-snug ${isCompleted ? "text-slate-555 line-through" : "text-slate-400"}`}>
-                              {session.desc}
-                            </p>
-                            {!isCompleted && session.status !== "Rest" && (
-                              <button
-                                onClick={() => {
-                                  window.dispatchEvent(new CustomEvent("start-focus-session", { detail: { taskName: session.title } }));
-                                }}
-                                className="mt-2 flex items-center gap-1 text-[10px] font-bold text-purple-400 hover:text-pink-400 transition-all cursor-pointer"
-                              >
-                                <Play size={10} /> Start Focus Session
-                              </button>
-                            )}
+
+                            {/* Goal */}
+                            <div className="mb-4">
+                              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Weekly Goal</h4>
+                              <p className="text-sm font-bold text-white leading-snug">
+                                {wk.weekGoal}
+                              </p>
+                            </div>
+
+                            {/* Tasks */}
+                            <div className="space-y-3.5">
+                              {wk.tasks?.map((task: any, tIdx: number) => {
+                                const taskId = weeksList.length > 1
+                                  ? `weekly-${wk.weekNumber}-${tIdx}`
+                                  : `weekly-${tIdx}`;
+                                const isCompleted = !!completedTasks[taskId];
+
+                                return (
+                                  <div key={tIdx} className="flex items-start gap-3 text-xs">
+                                    <button
+                                      onClick={() => toggleTaskCompletion(activePlanId!, taskId)}
+                                      className={`mt-0.5 shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-all cursor-pointer ${
+                                        isCompleted
+                                          ? "bg-indigo-600 border-indigo-500 text-white"
+                                          : "border-slate-800 hover:border-indigo-500 text-transparent bg-slate-950/45"
+                                      }`}
+                                    >
+                                      <Check size={11} strokeWidth={4} />
+                                    </button>
+                                    <div className="min-w-0 flex-1">
+                                      <p className={`font-semibold leading-relaxed break-words text-[13px] ${isCompleted ? "line-through text-slate-550" : "text-slate-200"}`}>
+                                        {task.title}
+                                      </p>
+                                      {task.type && (
+                                        <span className="text-[9px] font-bold text-slate-500 uppercase mt-0.5 block">{task.type}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Progress Bar */}
+                          <div className="mt-5 border-t border-slate-900/60 pt-3">
+                            <div className="flex justify-between items-center text-[9px] text-slate-500 font-bold uppercase mb-1.5">
+                              <span>Week Progress</span>
+                              <span>{completedCount} / {totalTasks} Completed</span>
+                            </div>
+                            <div className="w-full bg-slate-950 border border-slate-900 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className={`h-full transition-all duration-500 ${isCurrentWeek ? "bg-amber-500" : "bg-indigo-500"}`}
+                                style={{ width: `${progressPercent}%` }}
+                              />
+                            </div>
                           </div>
                         </div>
                       );
                     })}
                   </div>
-                )}
-
-                {/* Tab Content 2: Weekly */}
-                {activeTab === "weekly" && (
-                  <div className="space-y-6">
-                    {weeklyPlan.map((dayData, idx) => (
-                      <div key={idx} className="border-b border-slate-900/60 last:border-b-0 pb-4 last:pb-0">
-                        <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-3">
-                          {dayData.day}
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {dayData.sessions.map((sess: any, sIdx: number) => {
-                            const taskId = `weekly-${dayData.day}-${sIdx}`;
-                            const isCompleted = !!completedTasks[taskId];
-                            return (
-                              <div
-                                key={sIdx}
-                                className={`p-3 rounded-xl border transition-all text-left flex justify-between items-center gap-3 ${
-                                  isCompleted 
-                                    ? "bg-indigo-950/5 border-indigo-950/40 opacity-60" 
-                                    : "bg-slate-950/20 border-slate-900 hover:border-slate-850"
-                                }`}
-                              >
-                                <div className="flex items-center gap-3 min-w-0 flex-1">
-                                  <button
-                                    onClick={() => toggleTaskCompletion(activePlanId!, taskId)}
-                                    className={`shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-all cursor-pointer ${
-                                      isCompleted
-                                        ? "bg-indigo-600 border-indigo-500 text-white"
-                                        : "border-slate-850 hover:border-indigo-500 text-transparent bg-slate-950/45"
-                                    }`}
-                                  >
-                                    <Check size={11} strokeWidth={3.5} />
-                                  </button>
-                                  <div className="min-w-0">
-                                    <span className="text-[10px] text-slate-500 font-bold block">{sess.time}</span>
-                                    <span className={`text-xs font-bold block truncate mt-0.5 ${isCompleted ? "line-through text-slate-500" : "text-slate-200"}`}>
-                                      {sess.title}
-                                    </span>
-                                  </div>
-                                </div>
-                                <span className="text-[9px] font-semibold text-slate-400 shrink-0 bg-slate-900 px-2 py-0.75 rounded border border-slate-850">
-                                  {sess.dur}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Tab Content 3: Monthly Calendar outline */}
-                {activeTab === "monthly" && (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-7 gap-1.5 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider pb-2 border-b border-slate-900">
-                      <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
-                    </div>
-                    <div className="grid grid-cols-7 gap-2">
-                      {Array.from({ length: 30 }).map((_, idx) => {
-                        const dayNumber = idx + 1;
-                        const hasStudy = dayNumber % 3 === 0;
-                        const hasExam = dayNumber === 16;
-                        return (
-                          <div
-                            key={idx}
-                            className={`aspect-square rounded-xl flex flex-col justify-between p-1.5 border text-xs font-semibold ${
-                              hasExam
-                                ? "bg-red-500/10 border-red-500/40 text-red-400"
-                                : hasStudy
-                                ? "bg-indigo-500/5 border-indigo-500/20 text-indigo-400 hover:border-indigo-500/40"
-                                : "bg-slate-950/20 border-slate-900/60 text-slate-600"
-                            }`}
-                          >
-                            <span className="self-end text-[10px]">{dayNumber}</span>
-                            {hasExam && <span className="w-1.5 h-1.5 rounded-full bg-red-500 self-start ml-1 mb-1" />}
-                            {hasStudy && !hasExam && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 self-start ml-1 mb-1" />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="flex items-center gap-4 mt-4 text-[10px] text-slate-500 font-bold border-t border-slate-900 pt-3">
-                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-indigo-500/20 border border-indigo-500/35" /> Study Blocks</span>
-                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-red-500/20 border border-red-500/35" /> Exam Date</span>
-                    </div>
-                  </div>
-                )}
+                </div>
               </div>
             ) : (
               <div className="glass-panel rounded-3xl p-12 border border-slate-800/80 flex flex-col items-center justify-center min-h-[300px]">
@@ -1266,59 +1253,6 @@ export default function PlannerPage() {
           </div>
         </div>
       </div>
-
-      {/* Smart Reminders Scheduler Dialog/Modal */}
-      {showReminderModal && activePlan && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass-panel border border-slate-800 rounded-3xl w-full max-w-md p-6 text-left shadow-2xl relative animate-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
-              <Bell className="text-indigo-400" />
-              <span>Set Study Reminder</span>
-            </h3>
-            <p className="text-xs text-slate-450 mb-4">
-              Schedule a push notification to remind you to start studying your plan: <span className="font-semibold text-slate-200">"{activePlan.title}"</span>.
-            </p>
-
-            <div className="space-y-4">
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                  Pick Study Date & Time
-                </label>
-                <input
-                  type="datetime-local"
-                  value={reminderDateTime}
-                  onChange={(e) => setReminderDateTime(e.target.value)}
-                  className="w-full bg-slate-950/40 border border-slate-800 rounded-xl py-2.5 px-3.5 text-xs text-slate-200 outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              {permissionStatus === "denied" && (
-                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-400 text-[11px] leading-relaxed flex gap-2">
-                  <AlertCircle size={16} className="shrink-0 mt-0.5" />
-                  <span>
-                    Notification permissions are blocked. Please allow notification permissions for this website in your browser's site settings to receive reminders.
-                  </span>
-                </div>
-              )}
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button
-                  onClick={() => setShowReminderModal(false)}
-                  className="px-4 py-2 rounded-xl text-slate-400 hover:text-white border border-transparent hover:bg-slate-900 text-xs font-bold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSetReminder}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold cursor-pointer transition-all border border-purple-500/30"
-                >
-                  Save Reminder
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </AppLayout>
   );
 }

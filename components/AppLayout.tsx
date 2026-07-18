@@ -140,37 +140,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
               <span>Pomodoro</span>
             </button>
 
-            {/* Notifications */}
-            <div className="relative">
-              <button onClick={() => setShowNotifMenu(!showNotifMenu)}
-                className="p-2 rounded-lg border border-slate-800 hover:border-slate-700 bg-slate-900/30 hover:bg-slate-900/80 text-slate-400 hover:text-slate-200 transition-all cursor-pointer relative">
-                {loadingNotifs ? <Loader2 size={16} className="animate-spin" /> : <Bell size={16} />}
-                {activeNotifCount > 0 && <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
-              </button>
-              {showNotifMenu && (
-                <div className="absolute right-0 mt-2 w-80 glass-panel border border-slate-800 rounded-xl shadow-2xl p-4 z-50 text-left animate-in fade-in slide-in-from-top-2 duration-150">
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-800/40 mb-3">
-                    <span className="text-xs font-bold text-white uppercase tracking-wider">Notifications</span>
-                    <button onClick={markAllRead} className="text-[10px] text-slate-500 hover:text-indigo-400 cursor-pointer">Mark all read</button>
-                  </div>
-                  {notifications.length === 0 ? (
-                    <p className="text-xs text-slate-500 py-3 text-center">No new notifications</p>
-                  ) : (
-                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                      {notifications.map((notif) => (
-                        <div key={notif.id} className="p-2 rounded-lg bg-slate-950/40 border border-slate-900 hover:border-slate-800 transition-all">
-                          <div className="flex justify-between items-start gap-1">
-                            <span className="text-xs font-bold text-indigo-400">{notif.title}</span>
-                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1 shrink-0" />
-                          </div>
-                          <p className="text-[11px] text-slate-300 mt-0.5 leading-snug">{notif.message}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            {/* Notifications removed */}
 
             {/* Membership features disabled */}
           </div>
