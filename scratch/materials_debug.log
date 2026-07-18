@@ -1,27 +1,14 @@
-size: 2404 bytes
-hex: 255044462d312e340a25938c8b9e205265706f72
-text: %PDF-1.4
-%���� ReportLab Generated PDF document (opensource)
-1 0 obj
-<<
-/F1 2 0 R /F2 3 0 R
->>
-endobj
-2 0 obj
-<<
-/BaseFont /Helvetica /Encoding /WinAnsiEncoding /Name /F1 /Subtype /Type1 /Type /Font
->>
-endobj
-3 0 obj
-<<
-/BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding /Name /F2 /Subtype /Type1 /Type /Font
->>
-endobj
-4 0 obj
-<<
-/Contents 8 0 R /MediaBox [ 0 0 595.2756 841.8898 ] /Parent 7 0 R /Resources <<
-/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
->> /Rotate 0 /Trans <<
+size: 2741 bytes
+hex: 4d616368696e65204c6561726e696e670a0a496e
+text: Machine Learning
 
->> 
+Introduction
 
+Machine Learning (ML) is a branch of Artificial Intelligence (AI) that enables computers to learn from data and improve their performance without being explicitly programmed. Instead of following fixed rules, machine learning systems identify patterns in data and use those patterns to make predictions or decisions.
+
+How Machine Learning Works
+
+The basic process of machine learning involves:
+
+1. Collecting data from various sources.
+2. Cleaning and preparing the da

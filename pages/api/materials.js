@@ -81,7 +81,7 @@ function ascii85Decode(str) {
   if (cleaned.startsWith('<~')) cleaned = cleaned.slice(2);
   if (cleaned.endsWith('~>')) cleaned = cleaned.slice(0, -2);
   cleaned = cleaned.replace(/\s+/g, '');
-  
+
   const bytes = [];
   let i = 0;
   while (i < cleaned.length) {
@@ -91,7 +91,7 @@ function ascii85Decode(str) {
       i++;
       continue;
     }
-    
+
     const block = [];
     let count = 0;
     while (count < 5 && i < cleaned.length) {
@@ -99,20 +99,20 @@ function ascii85Decode(str) {
       count++;
       i++;
     }
-    
+
     if (count > 0) {
       const padding = 5 - count;
       for (let p = 0; p < padding; p++) {
         block.push(84);
       }
-      
+
       let val = block[0] * 52200625 + block[1] * 614125 + block[2] * 7225 + block[3] * 85 + block[4];
-      
+
       const b0 = (val >> 24) & 255;
       const b1 = (val >> 16) & 255;
       const b2 = (val >> 8) & 255;
       const b3 = val & 255;
-      
+
       if (count === 5) {
         bytes.push(b0, b1, b2, b3);
       } else if (count === 4) {
@@ -132,37 +132,37 @@ function fallbackPdfExtract(buffer) {
     let extractedText = '';
     const streamStartKeyword = Buffer.from('stream');
     const streamEndKeyword = Buffer.from('endstream');
-    
+
     let offset = 0;
     while (offset < buffer.length) {
       // Find the next 'stream' keyword
       const streamIdx = buffer.indexOf(streamStartKeyword, offset);
       if (streamIdx === -1) break;
-      
+
       // Filter out 'endstream' false matches (where 'stream' is preceded by 'end')
       if (streamIdx >= 3 && buffer[streamIdx - 1] === 100 && buffer[streamIdx - 2] === 110 && buffer[streamIdx - 3] === 101) {
         offset = streamIdx + 6;
         continue;
       }
-      
+
       // The actual stream data starts after 'stream' and a newline (either \r\n or \n)
       let dataStart = streamIdx + 6;
       if (buffer[dataStart] === 13) dataStart++; // \r
       if (buffer[dataStart] === 10) dataStart++; // \n
-      
+
       // Find the next 'endstream' keyword
       let dataEnd = buffer.indexOf(streamEndKeyword, dataStart);
-      
+
       // Try decompression with each found 'endstream' boundary to handle false matches
       while (dataEnd !== -1) {
         // Trim trailing \r or \n before 'endstream'
         let actualEnd = dataEnd;
         if (buffer[actualEnd - 1] === 10) actualEnd--;
         if (buffer[actualEnd - 1] === 13) actualEnd--;
-        
+
         const streamBytes = buffer.slice(dataStart, actualEnd);
         let decompressed = null;
-        
+
         try {
           decompressed = zlib.inflateSync(streamBytes);
         } catch (err1) {
@@ -194,10 +194,10 @@ function fallbackPdfExtract(buffer) {
             }
           }
         }
-        
+
         if (decompressed) {
           const textBlock = decompressed.toString('utf-8');
-          
+
           // Extract Tj strings: (text) Tj
           const tjRegex = /\(((?:\\[()]|[^)])*)\)\s*(?:Tj|TJ)/g;
           let tjMatch;
@@ -205,7 +205,7 @@ function fallbackPdfExtract(buffer) {
             let s = tjMatch[1].replace(/\\(.)/g, '$1');
             extractedText += s + ' ';
           }
-          
+
           // Extract TJ array strings: [(text) 10 (text)] TJ
           const tjArrayRegex = /\[((?:\((?:\\[()]|[^)])*\)\s*\d*\s*)+)\]\s*TJ/g;
           let tjArrayMatch;
@@ -220,14 +220,14 @@ function fallbackPdfExtract(buffer) {
           }
           break; // Successfully decompressed this stream!
         }
-        
+
         // Decompression failed; try next 'endstream'
         dataEnd = buffer.indexOf(streamEndKeyword, dataEnd + 9);
       }
-      
+
       offset = streamIdx + 6;
     }
-    
+
     // Final fallback: if nothing was extracted, scan the raw file text for parentheses contents
     if (!extractedText.trim()) {
       const rawText = buffer.toString('binary');
@@ -243,7 +243,7 @@ function fallbackPdfExtract(buffer) {
       }
       extractedText = parts.join(' ');
     }
-    
+
     return extractedText.replace(/[^\x20-\x7E\s]/g, '').replace(/\s+/g, ' ').trim();
   } catch (err) {
     console.error("Buffer-based fallback PDF extraction error:", err);
@@ -262,7 +262,6 @@ export default async function handler(req, res) {
       const { data, error } = await supabase
         .from("materials")
         .select("id, filename, processing_status, summary, created_at")
-        .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
       if (error) return res.status(500).json({ error: error.message });
@@ -283,7 +282,7 @@ export default async function handler(req, res) {
 
   try {
     const contentType = req.headers['content-type'] || '';
-    
+
     if (contentType.includes('multipart/form-data')) {
       const form = formidable({ multiples: false });
       const [fields, files] = await new Promise((resolve, reject) => {
@@ -300,7 +299,7 @@ export default async function handler(req, res) {
 
       filename = file.originalFilename || file.name || "document";
       const mimeType = file.mimetype || file.type || "";
-      
+
       if (filename.toLowerCase().endsWith('.pdf') || mimeType === 'application/pdf') {
         const dataBuffer = fs.readFileSync(file.filepath);
         try {
@@ -320,7 +319,7 @@ export default async function handler(req, res) {
       // Clean up temp file
       try {
         fs.unlinkSync(file.filepath);
-      } catch {}
+      } catch { }
 
       materialId = fields.materialId?.[0] || fields.materialId;
     } else {
@@ -357,7 +356,7 @@ export default async function handler(req, res) {
           fs.mkdirSync('scratch', { recursive: true });
         }
         fs.writeFileSync('scratch/materials_debug.log', `size: ${fileBuffer.length} bytes\nhex: ${fileBuffer.slice(0, 20).toString('hex')}\ntext: ${fileBuffer.slice(0, 500).toString('utf-8')}\n`);
-      } catch (logErr) {}
+      } catch (logErr) { }
 
       if (filename.toLowerCase().endsWith('.pdf') || mimeType === 'application/pdf') {
         try {
@@ -381,10 +380,14 @@ export default async function handler(req, res) {
 
     // Call Gemini
     const data = await generateContent({
-      contents: [{ role: 'user', parts: [{ text: `Based ONLY on the following text, generate 5 flashcards with q and a, and 5 MCQs with q, options array of 4, and ans. Return ONLY valid JSON.
+      contents: [{
+        role: 'user', parts: [{
+          text: `Based ONLY on the following text, generate 5 flashcards with q and a, and 5 MCQs with q, options array of 4, and ans. Return ONLY valid JSON.
 
 Text:
-${text.substring(0, 15000)}` }] }],
+${text.substring(0, 15000)}`
+        }]
+      }],
       generationConfig: {
         responseMimeType: "application/json",
         temperature: 0.3,
@@ -408,7 +411,7 @@ ${text.substring(0, 15000)}` }] }],
     cleanedText = cleanedText.trim();
 
     const output = JSON.parse(cleanedText);
-    
+
     // Robust key matching for flashcards
     let flashcards = [];
     if (output.flashcards && Array.isArray(output.flashcards)) {
