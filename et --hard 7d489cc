@@ -1,0 +1,33 @@
+[33m1eeed5f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m Removed user_id filter from materials
+[33m7d489cc[m StudyForge-AI-App -  AI Powered Study  Planner
+[33mb56d38c[m fix: complete login page with suspense
+[33ma950a00[m fix: add suspense to login
+[33m12cb967[m fix: add suspense to login
+[33m94bfc4c[m fix: force dynamic login page to fix prerender error
+[33m1d215e6[m fix: remove functions from vercel.json
+[33m219cabe[m trigger: redeploy with correct vercel.json
+[33m108f819[m fix: restore vercel.json for Next.js 16
+[33m7c9bae8[m Merge pull request #1 from Lakshmi-890/fix-login-email
+[33mee07ba4[m[33m ([m[1;31morigin/fix-login-email[m[33m, [m[1;32mfix-login-email[m[33m)[m delete vercel.json file
+[33m5113507[m fix: remove unused functions config from vercel.json
+[33m4de9e73[m update
+[33m2341c19[m fix: login email autofill issue and null check for searchParams
+[33mb473cff[m fix: rename middleware to proxy for Next.js 16 and fix login redirect
+[33mcb9e4a7[m final: auth fix with @supabase/ssr
+[33m60def34[m style: remove sign in with google option from login page
+[33m7f1b520[m feat: migrate auth to @supabase/ssr, restore login design with password visibility & Google OAuth
+[33m8495692[m Fix: Supabase singleton client + login working
+[33m319ce17[m fix: remove google auth, email login working
+[33ma11f4c8[m feat: remove Google sign in option and divider from Login page
+[33m24d5467[m fix: rename middleware.ts to proxy.ts to fix Next.js 16 deprecation warning
+[33mcfc8b44[m fix: make Google OAuth redirect URLs fully dynamic using location.origin
+[33ma841f5f[m fix: downgrade @supabase/auth-helpers-nextjs to 0.10.0 to fix Vercel export build error
+[33m6879533[m fix: update client google sign in to createClientComponentClient and target live vercel redirect
+[33ma77adb0[m fix: implement route handler using auth helpers client for oauth redirects
+[33m9760f1b[m feat: add working background lofi music player with waveform visualizer
+[33m0ffd88d[m fix: make Today's Plan start session buttons functional and style layout background and cards
+[33m826defc[m feat: implement save & history, pdf download, smart reminders, subject templates, and progress tracker
+[33m230644d[m remove large files
+[33mccecc32[m first commit
+[33me965b5a[m first commit
+[33mc1adf0c[m Initial commit from Create Next App

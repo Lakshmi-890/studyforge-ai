@@ -262,6 +262,7 @@ export default async function handler(req, res) {
       const { data, error } = await supabase
         .from("materials")
         .select("id, filename, processing_status, summary, created_at")
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
       if (error) return res.status(500).json({ error: error.message });
@@ -275,6 +276,10 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: "Method not allowed" });
   }
+
+  const { supabase, admin } = getSupabaseClients(req, res);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
 
   let materialId = undefined;
   let text = "";
@@ -331,10 +336,9 @@ export default async function handler(req, res) {
         throw new Error("Missing materialId in JSON request");
       }
 
-      const { admin } = getSupabaseClients(req, res);
-      const { data: material } = await admin.from("materials").select("*").eq("id", materialId).single();
+      const { data: material } = await admin.from("materials").select("*").eq("id", materialId).eq("user_id", user.id).single();
       if (!material) {
-        throw new Error("Material record not found");
+        throw new Error("Material record not found or unauthorized");
       }
 
       filename = material.filename;
@@ -472,12 +476,10 @@ ${text.substring(0, 15000)}`
 
     // Save to DB if materialId exists
     if (materialId) {
-      const { admin } = getSupabaseClients(req, res);
-
-      // Get user_id of owner
-      const { data: material } = await admin.from("materials").select("user_id").eq("id", materialId).single();
+      // Verify owner
+      const { data: material } = await admin.from("materials").select("id").eq("id", materialId).eq("user_id", user.id).single();
       if (!material) {
-        throw new Error("Could not find user associated with material");
+        throw new Error("Could not find material or unauthorized");
       }
 
       // Update material
@@ -491,7 +493,7 @@ ${text.substring(0, 15000)}`
       if (flashcardsList.length > 0) {
         await admin.from("flashcards").insert(
           flashcardsList.map((fc) => ({
-            user_id: material.user_id,
+            user_id: user.id,
             material_id: materialId,
             question: fc.question,
             answer: fc.answer,
@@ -502,7 +504,7 @@ ${text.substring(0, 15000)}`
       // Save quiz
       if (quizList.length > 0) {
         await admin.from("quizzes").insert({
-          user_id: material.user_id,
+          user_id: user.id,
           material_id: materialId,
           title: `Quiz: ${filename}`,
           questions_json: quizList,
@@ -517,7 +519,6 @@ ${text.substring(0, 15000)}`
 
     if (materialId) {
       try {
-        const { admin } = getSupabaseClients(req, res);
         await admin.from("materials").update({
           processing_status: "error",
         }).eq("id", materialId);
